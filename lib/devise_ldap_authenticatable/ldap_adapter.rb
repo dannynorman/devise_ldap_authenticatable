@@ -35,6 +35,14 @@ module Devise
       resource.dn
     end
     
+    def self.get_ldap_param(login, param)
+      options = {:login => login, 
+                 :ldap_auth_username_builder => ::Devise.ldap_auth_username_builder,
+                 :admin => ::Devise.ldap_use_admin_to_bind}
+      resource = LdapConnect.new(options)
+      resource.ldap_param_value(param)
+    end
+    
     def self.build_ldap_options(login)
       { 
         :login => login, 
