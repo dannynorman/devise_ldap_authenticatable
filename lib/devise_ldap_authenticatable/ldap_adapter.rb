@@ -36,9 +36,7 @@ module Devise
     end
     
     def self.get_ldap_param(login, param)
-      options = {:login => login, 
-                 :ldap_auth_username_builder => ::Devise.ldap_auth_username_builder,
-                 :admin => ::Devise.ldap_use_admin_to_bind}
+      options = build_ldap_options(login)
       resource = LdapConnect.new(options)
       resource.ldap_param_value(param)
     end
@@ -95,6 +93,15 @@ module Devise
       rescue Errno::ETIMEDOUT, Timeout::Error, Net::LDAP::LdapError
         @ldap_auth_username_builder.call(@attribute, @login, @ldap)
       end
+      
+      def ldap_param_value(param)
+				filter = Net::LDAP::Filter.eq(@attribute.to_s, @login.to_s)
+        ldap_entry = nil
+        @ldap.search(:filter => filter) {|entry| ldap_entry = entry}
+
+				DeviseLdapAuthenticatable::Logger.send("Requested param #{param} has value #{ldap_entry.send(param)}")
+				ldap_entry.send(param)
+			end
 
       def authenticate!
         @ldap.auth(dn, @password)
