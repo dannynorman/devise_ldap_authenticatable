@@ -95,13 +95,13 @@ module Devise
       end
       
       def ldap_param_value(param)
-				filter = Net::LDAP::Filter.eq(@attribute.to_s, @login.to_s)
+	filter = Net::LDAP::Filter.eq(@attribute.to_s, @login.to_s)
         ldap_entry = nil
         @ldap.search(:filter => filter) {|entry| ldap_entry = entry}
-
-				DeviseLdapAuthenticatable::Logger.send("Requested param #{param} has value #{ldap_entry.send(param)}")
-				ldap_entry.send(param)
-			end
+	DeviseLdapAuthenticatable::Logger.send("Requested param #{param} has value #{ldap_entry.send(param)}")
+	value = ldap_entry.send(param)
+	value.is_a? Array ? value.first : value
+      end
 
       def authenticate!
         @ldap.auth(dn, @password)
