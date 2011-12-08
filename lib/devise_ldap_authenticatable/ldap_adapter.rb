@@ -26,7 +26,7 @@ module Devise
     def self.get_groups(login)
       options = build_ldap_options(login)
       ldap = LdapConnect.new(options)
-      ldap.user_groups
+      ldap.user_groups(login)
     end
     
     def self.get_dn(login)
@@ -38,7 +38,7 @@ module Devise
     def self.get_ldap_param(login, param)
       options = build_ldap_options(login)
       resource = LdapConnect.new(options)
-      resource.ldap_param_value(param)
+      resource.ldap_param_value(param).first
     end
     
     def self.build_ldap_options(login)
@@ -95,16 +95,17 @@ module Devise
       end
       
       def ldap_param_value(param)
-	filter = Net::LDAP::Filter.eq(@attribute.to_s, @login.to_s)
+				filter = Net::LDAP::Filter.eq(@attribute.to_s, @login.to_s)
         ldap_entry = nil
         @ldap.search(:filter => filter) {|entry| ldap_entry = entry}
-	DeviseLdapAuthenticatable::Logger.send("Requested param #{param} has value #{ldap_entry.send(param)}")
-	ldap_entry.send(param)
-      end
+
+				DeviseLdapAuthenticatable::Logger.send("Requested param #{param} has value #{ldap_entry.send(param)}")
+				ldap_entry.send(param)
+			end
 
       def authenticate!
         @ldap.auth(dn, @password)
-        bind(@ldap)
+        @ldap.bind
       end
 
       def authenticated?
@@ -163,12 +164,15 @@ module Devise
         return true
       end
       
-      def user_groups
+      def user_groups(login)
         admin_ldap = LdapConnect.admin
-
-        DeviseLdapAuthenticatable::Logger.send("Getting groups for #{dn}")
-        filter = Net::LDAP::Filter.eq("uniqueMember", dn)
-        admin_ldap.search(:filter => filter, :base => @group_base).collect(&:dn)
+        
+        DeviseLdapAuthenticatable::Logger.send("Getting groups for #{login}")
+        
+        filter1 = Net::LDAP::Filter.eq("objectClass", "posixGroup")
+        filter2 = Net::LDAP::Filter.eq("memberUid", login)
+        
+        admin_ldap.search(:filter => filter1 & filter2, :base => @group_base).collect(&:dn)
       end
       
       private
@@ -176,20 +180,12 @@ module Devise
       def self.admin
         ldap = LdapConnect.new(:admin => true).ldap
         
-        unless bind(ldap)
+        unless ldap.bind
           DeviseLdapAuthenticatable::Logger.send("Cannot bind to admin LDAP user")
           raise DeviseLdapAuthenticatable::LdapException, "Cannot connect to admin LDAP user"
         end
         
         return ldap
-      end
-      
-      def bind(ldap)
-        DeviseLdapTimer.timeout(CONN_TIMEOUT) do
-          ldap.bind
-        end
-      rescue Errno::ETIMEDOUT, Timeout::Error, Net::LDAP::LdapError
-        false
       end
       
       def find_ldap_user(ldap)
